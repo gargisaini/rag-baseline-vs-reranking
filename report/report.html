@@ -31,7 +31,7 @@
 
 <h2>Setup</h2>
 <p>For the document I picked <b>NIST SP 800-63B-4</b>, the US government's guideline on authentication and passwords (129 pages, July 2025). I chose it because it is written as a long list of "SHALL", "SHALL NOT" and "MAY ... but" rules, and several rules show up more than once: in the formal requirements, and again, more loosely, in the usability section and in Appendix A. That felt like a fair place to look for retrieval mistakes.</p>
-<p>I dropped the cover and table of contents (the TOC lines kept matching queries), removed the header that repeats on every page, and cut the text into chunks of 200 tokens with 40 tokens of overlap, which gave 337 chunks. I measured chunk size in the bi-encoder's own tokens on purpose. My first attempt used 180-word windows, and some of those turned into 500+ tokens, which the bi-encoder (256-token limit) would have silently cut off while the cross-encoder still read them. That would have made the baseline look worse than it really is.</p>
+<p>I dropped the cover and table of contents (TOC lines are section titles that would match queries without containing any actual rules), removed the header that repeats on every page, and cut the text into chunks of 200 tokens with 40 tokens of overlap, which gave 337 chunks. I measured chunk size in the bi-encoder's own tokens on purpose. My first attempt used 180-word windows, and some of those turned into 500+ tokens, which the bi-encoder (256-token limit) would have silently cut off while the cross-encoder still read them. That would have made the baseline look worse than it really is.</p>
 <p>Models: <code>all-MiniLM-L6-v2</code> as the bi-encoder with an exact FAISS inner-product index, <code>cross-encoder/ms-marco-MiniLM-L-6-v2</code> as the re-ranker, and <code>gemini-3.5-flash</code> (temperature 0) to write the answers. Both pipelines use the same prompt function: three numbered passages, cite them like [1], and say "I don't know" if the answer isn't there. The only thing that changes between Answer 1 and Answer 2 is which three chunks go in.</p>
 
 <h2>1. Architecture comparison</h2>
@@ -44,7 +44,7 @@
 <table>
 <tr><th>Type</th><th>Question</th><th>Gold chunk: baseline rank &rarr; re-ranked rank</th><th>Result</th></tr>
 <tr><td>Keyword trap</td><td>Can a website force me to include special characters and numbers in my password?</td><td>chunk 40: #7 &rarr; #2</td><td class="good">rescued</td></tr>
-<tr><td>Keyword trap / exception</td><td>Do users have to change their password every few months?</td><td>chunk 219: #5 &rarr; #1</td><td class="good">rescued</td></tr>
+<tr><td>Keyword trap</td><td>Do users have to change their password every few months?</td><td>chunk 219: #5 &rarr; #1</td><td class="good">rescued</td></tr>
 <tr><td>Negation</td><td>Are password hints allowed?</td><td>chunk 40: #5 &rarr; #1</td><td class="good">rescued</td></tr>
 <tr><td>Exception</td><td>What is the minimum password length?</td><td>chunk 39: #5 &rarr; #1</td><td class="good">rescued</td></tr>
 <tr><td>Buried rule</td><td>Is pasting a password into the login field allowed?</td><td>chunk 44: #4 &rarr; #1</td><td class="good">rescued</td></tr>
