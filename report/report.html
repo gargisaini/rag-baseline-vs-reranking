@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>RAG Report: Baseline vs Re-Ranking</title>
+<style>
+  @page { size: A4; margin: 18mm 17mm; }
+  body { font-family: "Georgia", "Times New Roman", serif; font-size: 10.6pt; line-height: 1.5; color: #1d1d1f; max-width: 780px; margin: 0 auto; }
+  h1 { font-size: 19pt; margin: 0 0 2px; color: #1f3b73; }
+  h2 { font-size: 13.5pt; color: #1f3b73; margin: 20px 0 6px; border-bottom: 1px solid #c9d3e6; padding-bottom: 3px; }
+  h3 { font-size: 11pt; margin: 14px 0 4px; }
+  .meta { color: #555; font-size: 9.8pt; margin-bottom: 14px; }
+  a { color: #1f3b73; }
+  table { border-collapse: collapse; width: 100%; margin: 8px 0 10px; font-family: "Segoe UI", Arial, sans-serif; font-size: 8.9pt; page-break-inside: avoid; }
+  th, td { border: 1px solid #cfd6e3; padding: 4px 6px; text-align: left; vertical-align: top; }
+  th { background: #eef2f9; }
+  td.num, th.num { text-align: right; white-space: nowrap; }
+  .good { color: #1b6e2e; font-weight: bold; }
+  .miss { color: #9a3b00; }
+  .qa { border-left: 3px solid #c9d3e6; padding: 2px 0 2px 10px; margin: 6px 0 10px; font-size: 9.9pt; page-break-inside: avoid; }
+  .qa p { margin: 3px 0; }
+  .label { font-family: "Segoe UI", Arial, sans-serif; font-size: 8.6pt; font-weight: bold; color: #555; text-transform: uppercase; letter-spacing: .03em; }
+  code { font-family: Consolas, monospace; font-size: 9.2pt; background: #f3f5f9; padding: 0 3px; }
+  p { margin: 6px 0; }
+</style>
+</head>
+<body>
+
+<h1>RAG Assignment: Baseline vs. Re-Ranking</h1>
+<div class="meta">Gargi Saini &middot; Language Models and Agents (LMA), Assignment 1 &middot; Code: <a href="https://github.com/gargisaini/rag-baseline-vs-reranking">github.com/gargisaini/rag-baseline-vs-reranking</a></div>
+
+<h2>Setup</h2>
+<p>For the document I picked <b>NIST SP 800-63B-4</b>, the US government's guideline on authentication and passwords (129 pages, July 2025). I chose it because it is written as a long list of "SHALL", "SHALL NOT" and "MAY ... but" rules, and several rules show up more than once: in the formal requirements, and again, more loosely, in the usability section and in Appendix A. That felt like a fair place to look for retrieval mistakes.</p>
+<p>I dropped the cover and table of contents (the TOC lines kept matching queries), removed the header that repeats on every page, and cut the text into chunks of 200 tokens with 40 tokens of overlap, which gave 337 chunks. I measured chunk size in the bi-encoder's own tokens on purpose. My first attempt used 180-word windows, and some of those turned into 500+ tokens, which the bi-encoder (256-token limit) would have silently cut off while the cross-encoder still read them. That would have made the baseline look worse than it really is.</p>
+<p>Models: <code>all-MiniLM-L6-v2</code> as the bi-encoder with an exact FAISS inner-product index, <code>cross-encoder/ms-marco-MiniLM-L-6-v2</code> as the re-ranker, and <code>gemini-3.5-flash</code> (temperature 0) to write the answers. Both pipelines use the same prompt function: three numbered passages, cite them like [1], and say "I don't know" if the answer isn't there. The only thing that changes between Answer 1 and Answer 2 is which three chunks go in.</p>
+
+<h2>1. Architecture comparison</h2>
+<p>A <b>bi-encoder</b> reads the query and each chunk separately and turns each one into a single vector. Relevance is just the cosine between the two vectors. Since chunk vectors don't depend on the query, I can compute all of them once, store them in an index, and at question time I only have to embed the query and do a fast vector search. The catch is that the whole chunk gets squeezed into one vector before it ever sees the question, so the score mostly reflects overall topic overlap.</p>
+<p>A <b>cross-encoder</b> takes the query and the chunk together as one input, so self-attention runs across both texts and every query word can look at every chunk word. It outputs one relevance score for that pair. This lets it pick up things a single vector blurs, such as whether the chunk actually answers the question, or whether a "SHALL NOT" applies to the thing being asked about. The cost is that nothing can be precomputed: every new query needs a full transformer pass for every chunk you want to score.</p>
+
+<h2>2. Qualitative &amp; rank-shift analysis</h2>
+<p>I wrote 10 questions the way a normal user would phrase them, not in the document's wording, and marked the chunk(s) that really contain the answer as "gold". Here is where the best gold chunk sat before and after re-ranking (top 3 is what the LLM gets to see):</p>
+
+<table>
+<tr><th>Type</th><th>Question</th><th>Gold chunk: baseline rank &rarr; re-ranked rank</th><th>Result</th></tr>
+<tr><td>Keyword trap</td><td>Can a website force me to include special characters and numbers in my password?</td><td>chunk 40: #7 &rarr; #2</td><td class="good">rescued</td></tr>
+<tr><td>Keyword trap / exception</td><td>Do users have to change their password every few months?</td><td>chunk 219: #5 &rarr; #1</td><td class="good">rescued</td></tr>
+<tr><td>Negation</td><td>Are password hints allowed?</td><td>chunk 40: #5 &rarr; #1</td><td class="good">rescued</td></tr>
+<tr><td>Exception</td><td>What is the minimum password length?</td><td>chunk 39: #5 &rarr; #1</td><td class="good">rescued</td></tr>
+<tr><td>Buried rule</td><td>Is pasting a password into the login field allowed?</td><td>chunk 44: #4 &rarr; #1</td><td class="good">rescued</td></tr>
+<tr><td>Constraint</td><td>Can a fingerprint alone be used to log in?</td><td>chunk 99: #2 &rarr; #2</td><td>already in top 3</td></tr>
+<tr><td>Buried rule</td><td>How many wrong guesses can an attacker make before the account is locked?</td><td>chunk 94: #2 &rarr; #1</td><td>already in top 3</td></tr>
+<tr><td>Negation</td><td>Are security questions allowed when choosing a password?</td><td>not in top 10 (bi-encoder rank #11)</td><td class="miss">recall miss</td></tr>
+<tr><td>Exception</td><td>Can SMS be used for out-of-band authentication?</td><td>not in top 10 (bi-encoder rank #14)</td><td class="miss">recall miss</td></tr>
+<tr><td>Buried rule</td><td>Can a verifier check only part of the password?</td><td>not in top 10 (bi-encoder rank #18)</td><td class="miss">recall miss</td></tr>
+</table>
+
+<p>So the cross-encoder pulled the answer into the top 3 in 5 of the 10 questions, never pushed a gold chunk out of the top 3, and could do nothing for the 3 questions where the bi-encoder had already dropped the answer below rank 10. The cases that taught me the most:</p>
+
+<h3>Keyword trap: "Can a website force me to include special characters and numbers?"</h3>
+<p>The baseline's top 3 were chunks 269 and 264 from Appendix A ("Strength of Passwords") plus chunk 263, the end of the reference list running into that appendix. Appendix A <i>describes</i> how many websites force rules like "an uppercase letter and a number", so it is full of words from my question. The actual rule, "Verifiers and CSPs SHALL NOT impose other composition rules", sits in chunk 40, which the bi-encoder put at #7. The cross-encoder moved it to #2.</p>
+<div class="qa">
+<p><span class="label">Answer 1 (baseline)</span><br>"Yes. Online services use 'composition rules' that require users to construct passwords using a mix of character types, such as at least one digit (number), uppercase letter, and symbol [1], [2]."</p>
+<p><span class="label">Answer 2 (re-ranked)</span><br>"...verifiers and Credential Service Providers (CSPs) <b>shall not</b> impose composition rules requiring mixtures of different character types [2]. However, passage [1] notes that in practice, some online services do require users to include uppercase letters, numbers, or symbols [1]."</p>
+</div>
+<p>This is the clearest failure in the whole set. Answer 1 isn't made up, since every sentence is supported by a passage, but it states the rule backwards, because the LLM only saw passages describing the bad practice. Answer 2 gets the rule right and even separates "what the guideline says" from "what websites do".</p>
+
+<h3>Exception: "What is the minimum password length?"</h3>
+<p>The bi-encoder's #1 was chunk 266 from the appendix, which says the right length "depends on the threat model being addressed". The chunk that has the numbers (chunk 39) was at #5. After re-ranking it is #1 with a clear lead (CE score 6.27 against 5.55 for the next one).</p>
+<div class="qa">
+<p><span class="label">Answer 1 (baseline)</span><br>"...a specific numerical minimum password length is not provided; rather, the required minimum password length 'depends on the threat model being addressed' [1]."</p>
+<p><span class="label">Answer 2 (re-ranked)</span><br>"Single-factor authentication: passwords must be a minimum of 15 characters... Multi-factor authentication: passwords may be shorter, but must be a minimum of eight characters [1]."</p>
+</div>
+<p>Answer 1 completely misses the essential numbers, and Answer 2 also catches the exception (8 characters when the password is only one part of multi-factor).</p>
+
+<h3>Omitted clause: "Do users have to change their password every few months?"</h3>
+<p>This one surprised me. Both answers say "no", so at first glance the baseline looks fine. But the baseline's #2 chunk (218) happens to end in the middle of the sentence, at "Do not require that passwords be changed arbitrarily (e.g.,". The next chunk (219), which contains the rest, "...unless there is a user request or evidence of authenticator compromise", was at #5. The cross-encoder put 219 at #1.</p>
+<div class="qa">
+<p><span class="label">Answer 1 (baseline)</span><br>"Based on the provided text, no. The guidelines state: 'Do not require that passwords be changed arbitrarily' [2]."</p>
+<p><span class="label">Answer 2 (re-ranked)</span><br>"No. Passwords should not be required to be changed arbitrarily or periodically unless there is a user request or evidence of an authenticator compromise [1][2]."</p>
+</div>
+<p>Answer 1 drops the exception, and in a security policy the exception is the important part: you <i>do</i> have to force a change after a compromise.</p>
+
+<h3>Negation: "Are password hints allowed?"</h3>
+<p>The answer, "SHALL NOT permit the subscriber to store a hint", is item 7 in the same list as the composition rule (chunk 40), and the bi-encoder had it at #5 behind general password-advice chunks. Answer 1 was "I don't know. The provided passages do not mention whether password hints are allowed." Answer 2, with chunk 40 at #1, said "No, verifiers and CSPs shall not permit subscribers to store a password hint that is accessible to an unauthenticated claimant [1]." Good to see that the "I don't know" instruction worked here instead of the model guessing.</p>
+
+<h3>Buried rule: "Is pasting a password allowed?"</h3>
+<p>Here both answers were "yes", so re-ranking didn't change the conclusion. The difference is in the evidence. The baseline answer leaned on a tip from the usability section, while the re-ranked answer cited the actual requirement in chunk 44 (moved #4 &rarr; #1): verifiers "SHOULD permit claimants to use the 'paste' function". I'd count it as a quieter improvement: same answer, better source.</p>
+
+<h3>Where re-ranking could not help</h3>
+<p>For the security-question, SMS and truncation questions, the gold chunk was at bi-encoder rank #11, #14 and #18, just outside the top 10, so the cross-encoder never saw it. The truncation and security-question answers were both "I don't know" under both pipelines. The SMS case was a bit worrying. Answer 2 confidently said "Yes, SMS can be used", because re-ranking brought in a chunk mentioning SMS, but neither pipeline saw the sentence saying PSTN/SMS use is <i>restricted</i>. So a better ordering of the wrong candidates made the answer sound more sure, not more correct. My takeaway is the one from the lecture: re-ranking fixes ranking, not recall. Pulling 30 to 50 candidates instead of 10, or adding BM25 for hybrid search, would likely fix these three, since all of them were close to the cut-off.</p>
+
+<h2>3. Latency profiling</h2>
+<p>Measured on CPU after a warm-up run. Retrieval stages are the median of 10 questions &times; 5 repeats; LLM time is the median of the real Gemini calls.</p>
+<table>
+<tr><th>Stage (median, ms)</th><th class="num">Pipeline 1: Baseline</th><th class="num">Pipeline 2: Re-ranking</th></tr>
+<tr><td>Query embedding + top-10 FAISS search</td><td class="num">13.3</td><td class="num">13.3</td></tr>
+<tr><td>Cross-encoder on 10 (query, chunk) pairs</td><td class="num">&ndash;</td><td class="num">285.2</td></tr>
+<tr><th>Retrieval total</th><th class="num">13.3</th><th class="num">298.4</th></tr>
+<tr><td>LLM generation (Gemini API)</td><td class="num">4,922.1</td><td class="num">4,482.4</td></tr>
+<tr><th>End-to-end</th><th class="num">4,935.3</th><th class="num">4,780.8</th></tr>
+</table>
+<p>Re-ranking makes retrieval about 22&times; slower (13 ms &rarr; 298 ms), which sounds like a lot until you see the LLM call takes 4 to 5 seconds. The extra 285 ms is about 6% of a full request. The LLM rows differ only because of network noise. Both pipelines send the same prompt size, and Pipeline 2 even came out faster end to end in this run. For a user, the re-ranker's cost is basically invisible next to generation.</p>
+
+<h2>4. Scaling question: why not run the cross-encoder on everything?</h2>
+<p>Because the cross-encoder has to do a full forward pass for every (query, chunk) pair, and none of that can be done ahead of time since every score depends on the query. The bi-encoder's expensive part, embedding the chunks, happens once at indexing time, so a query costs one small embedding plus a vector search. I measured both on my 337 chunks and scaled them linearly:</p>
+<table>
+<tr><th>Per query</th><th class="num">337 chunks (measured)</th><th class="num">1 million chunks (linear estimate)</th></tr>
+<tr><td>Bi-encoder: embed query + search every vector</td><td class="num">19.3 ms</td><td class="num">754 ms</td></tr>
+<tr><td>Cross-encoder: score every chunk</td><td class="num">10,767 ms</td><td class="num">532.5 min (~9 hours)</td></tr>
+</table>
+<p>Even on this small document, scoring everything with the cross-encoder takes almost 11 seconds per question, more than double the LLM call. At a million chunks it would be about nine hours <i>per question</i>, while the bi-encoder side would still be under a second, and much less with an approximate index like HNSW. That's why the two are used together: the bi-encoder is cheap enough to search everything and get a decent shortlist (recall), and the cross-encoder is accurate enough to put the right few at the top of that shortlist (precision). Running the cross-encoder only on the 10 candidates cost me 285 ms, about 38 times less than scoring the whole document.</p>
+
+</body>
+</html>
