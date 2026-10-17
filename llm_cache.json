@@ -1,0 +1,82 @@
+{
+ "63d052bc2e9e48f6751e615806588da933cb5e53d51de683b4105a608e955456": {
+  "answer": "Based on the provided passages, a specific numerical minimum password length is not provided; rather, the required minimum password length \"depends on the threat model being addressed\" [1].",
+  "seconds": 5.380639399998472
+ },
+ "457f1299e2aeb196864eaebdf06e135970a684be28691d1bfc7487afdbfc8a2d": {
+  "answer": "Based on the provided passages, the minimum password length depends on the authentication process and threat model:\n\n* **Single-factor authentication:** Passwords must be a minimum of 15 characters in length [1].\n* **Multi-factor authentication:** Passwords may be shorter, but must be a minimum of eight characters in length [1].\n\nAdditionally, the minimum required password length depends on the threat model being addressed [2].",
+  "seconds": 4.36278750000929
+ },
+ "caad14aa95340c9bf173b845ea53fa152697f179582a17f06360fd108894875d": {
+  "answer": "Yes. Online services use \"composition rules\" that require users to construct passwords using a mix of character types, such as at least one digit (number), uppercase letter, and symbol [1], [2].",
+  "seconds": 5.650241199997254
+ },
+ "440ab8f15f4139b369a935ad0371f3fe279771652639e39a7602eb1f10379ed4": {
+  "answer": "Based on the provided passages, guidelines state that verifiers and Credential Service Providers (CSPs) **shall not** impose composition rules requiring mixtures of different character types [2]. \n\nHowever, passage [1] notes that in practice, some online services do require users to include uppercase letters, numbers, or symbols [1].",
+  "seconds": 5.182205300006899
+ },
+ "445b1d65b5965ec0b696c61222c214e03e16fa6bbaa203b1380a28b11e24448c": {
+  "answer": "Based on the provided text, no. The guidelines state: \"Do not require that passwords be changed arbitrarily\" [2].",
+  "seconds": 6.062574900002801
+ },
+ "daa378d67ff55b72c8fc862c24ae6e2a5b0c5cc434f5b1275f51e899eb75fe4b": {
+  "answer": "No. Passwords should not be required to be changed arbitrarily or periodically unless there is a user request or evidence of an authenticator compromise [1][2].",
+  "seconds": 3.9029274999920744
+ },
+ "65307e38a06ecd3fef28726391329c1eddff4e52c8a14c6c4f7514578b0e7ed0": {
+  "answer": "I don't know. The provided passages do not mention whether password hints are allowed.",
+  "seconds": 3.0414931000123033
+ },
+ "69edac9a4892eac30d169207f88a693a4ee3c5b13db59685de658184c5a936f4": {
+  "answer": "No, verifiers and CSPs shall not permit subscribers to store a password hint that is accessible to an unauthenticated claimant [1].",
+  "seconds": 4.874580599993351
+ },
+ "dfc70335303c505a70c298f5699e0d4810cbe1a9552eefee8f9cceb323ac8738": {
+  "answer": "I am sorry, but the provided passages do not contain information about whether security questions are allowed when choosing a password. Therefore, I don't know.",
+  "seconds": 2.9430764999997336
+ },
+ "c0477445e6f916f03280ed4b2b1ab0d88dbb8a41312fa52983dec3e9d0a2dbee": {
+  "answer": "I don't know based on the provided passages.",
+  "seconds": 2.7807410999957938
+ },
+ "90c560a029c8202f0586c6e10f3859c6aff47252a4a610761464802e5b48853a": {
+  "answer": "Based on the provided passages, the term \"SMS\" is not explicitly mentioned. However, passage [1] states that out-of-band authentication uses \"text messaging or audio calls to communicate with the subscriber\" [1]. \n\nBecause SMS specifically is not named in the text, I do not know for certain based strictly on these passages.",
+  "seconds": 10.123611499991966
+ },
+ "d8077da13336b786f79ffbfee62aef8569b314c8bb954615e21c695ccf6fa3b4": {
+  "answer": "Yes, SMS (text messaging) can be used for out-of-band authentication [1] [3]. \n\nAccording to the provided text, out-of-band authentication can use text messaging to communicate with the subscriber [1], and a secret can be sent from the verifier to the out-of-band device via the PSTN using SMS or voice [3].",
+  "seconds": 4.601920000000973
+ },
+ "d73a61d9a0c0bc3c3bd30aed1ba7874f0e49d81d2c7791a0996bd932bfda2a72": {
+  "answer": "No. According to the provided text, biometrics (such as fingerprints) shall only be used as part of multi-factor authentication along with a physical authenticator [2].",
+  "seconds": 7.407075800001621
+ },
+ "52c71b7b748b66bb0b028cd32919f0b307cd77db2481f83769d8e864de0a07b5": {
+  "answer": "Based on the provided passages, no, a fingerprint alone cannot be used to log in. Biometrics \"SHALL only be used as part of multi-factor authentication with a physical authenticator\" [2].",
+  "seconds": 4.689766099996632
+ },
+ "2d197cb6a76d569aa4cb851cf79fedb5be8ab333c2cab68bfc3c54da65ef691d": {
+  "answer": "Yes. Usability guidelines specify supporting copy and paste functionality in fields used for entering passwords, including passphrases [3].",
+  "seconds": 3.1115826000022935
+ },
+ "08d698f7b5f9747cbc55439c5fbdb6ffdd9d29f4e686ae0cad0347310a688454": {
+  "answer": "Yes, pasting a password is allowed and recommended. Verifiers should permit claimants to use the \"paste\" function when entering a password [1], and password fields should support copy and paste functionality [2].",
+  "seconds": 2.9366181999939727
+ },
+ "8ffaf352e7679c0a8c67407ea281ec349f281c6a30cff5f7d34382e6c12ed2e3": {
+  "answer": "I don't know. The provided passages do not contain information about whether a verifier can check only part of a password.",
+  "seconds": 3.891791399990325
+ },
+ "b73ac73cbe45d71cd514e28c8b79c92e0bfa0e104eb5111ec39c775e06f1399d": {
+  "answer": "I don't know.",
+  "seconds": 3.6283962999877986
+ },
+ "671fd0d644bedfe256ac7d0cdb04100d76c09c7223b8ac74165d44cf7b04a25c": {
+  "answer": "Based on the provided passages, there is an upper bound limit of 100 attempts before authenticators are disabled or a lockout occurs due to rate limiting, but agencies may impose lower limits [2].",
+  "seconds": 4.463490900001489
+ },
+ "fd3f519bcf52ccdf039c659223dd7486f8ce60221e1bad07c1aadaf34b4b9866": {
+  "answer": "Based on the provided passages, the limit is an upper bound of 100 attempts, though agencies may impose lower limits [1].",
+  "seconds": 13.191986899997573
+ }
+}
