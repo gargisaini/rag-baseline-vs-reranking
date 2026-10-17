@@ -1,0 +1,6 @@
+.env
+*.key
+.ipynb_checkpoints/
+__pycache__/
+.claude/
+RAG_LMA_Assignment_v1.pdf
