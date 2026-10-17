@@ -21,4 +21,5 @@ jupyter notebook rag_baseline_vs_rerank.ipynb
 
 - `rag_baseline_vs_rerank.ipynb` – all the code, with outputs (pipelines, failure queries, latency)
 - `NIST.SP.800-63B-4.pdf` – the document used as the corpus
-- `report/report.pdf` – the written report
+- `llm_cache.json` – saved Gemini answers and their measured latency (the free tier allows only a few requests per day, so re-running the notebook reuses these instead of calling the API again)
+- `report/report.pdf` – the written report (`report/report.html` is the source)
