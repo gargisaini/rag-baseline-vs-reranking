@@ -5,7 +5,7 @@
 <title>RAG Report: Baseline vs Re-Ranking</title>
 <style>
   @page { size: A4; margin: 18mm 17mm; }
-  body { font-family: "Georgia", "Times New Roman", serif; font-size: 10.6pt; line-height: 1.5; color: #1d1d1f; max-width: 780px; margin: 0 auto; }
+  body { font-family: "Georgia", "Times New Roman", serif; font-size: 10.4pt; line-height: 1.45; color: #1d1d1f; max-width: 780px; margin: 0 auto; }
   h1 { font-size: 19pt; margin: 0 0 2px; color: #1f3b73; }
   h2 { font-size: 13.5pt; color: #1f3b73; margin: 20px 0 6px; border-bottom: 1px solid #c9d3e6; padding-bottom: 3px; }
   h3 { font-size: 11pt; margin: 14px 0 4px; }
@@ -39,15 +39,15 @@
 <p>A <b>cross-encoder</b> takes the query and the chunk together as one input, so self-attention runs across both texts and every query word can look at every chunk word. It outputs one relevance score for that pair. This lets it pick up things a single vector blurs, such as whether the chunk actually answers the question, or whether a "SHALL NOT" applies to the thing being asked about. The cost is that nothing can be precomputed: every new query needs a full transformer pass for every chunk you want to score.</p>
 
 <h2>2. Qualitative &amp; rank-shift analysis</h2>
-<p>I wrote 10 questions the way a normal user would phrase them, not in the document's wording, and marked the chunk(s) that really contain the answer as "gold". Here is where the best gold chunk sat before and after re-ranking (top 3 is what the LLM gets to see):</p>
+<p>I wrote 10 questions the way a normal user would phrase them, not in the document's wording, and marked the chunk(s) that really contain the answer as "gold". Some answers appear in more than one chunk, so the middle column follows one selected gold chunk, the one ranked highest after re-ranking, and shows where it sat in the baseline. The result column looks at all gold chunks: a question only counts as rescued if none of them were in the baseline top 3 (the top 3 is all the LLM sees).</p>
 
 <table>
-<tr><th>Type</th><th>Question</th><th>Gold chunk: baseline rank &rarr; re-ranked rank</th><th>Result</th></tr>
+<tr><th>Type</th><th>Question</th><th>Rank movement of the selected gold chunk (baseline &rarr; re-ranked)</th><th>Result</th></tr>
 <tr><td>Keyword trap</td><td>Can a website force me to include special characters and numbers in my password?</td><td>chunk 40: #7 &rarr; #2</td><td class="good">rescued</td></tr>
 <tr><td>Keyword trap</td><td>Do users have to change their password every few months?</td><td>chunk 219: #5 &rarr; #1</td><td class="good">rescued</td></tr>
 <tr><td>Negation</td><td>Are password hints allowed?</td><td>chunk 40: #5 &rarr; #1</td><td class="good">rescued</td></tr>
 <tr><td>Exception</td><td>What is the minimum password length?</td><td>chunk 39: #5 &rarr; #1</td><td class="good">rescued</td></tr>
-<tr><td>Buried rule</td><td>Is pasting a password into the login field allowed?</td><td>chunk 44: #4 &rarr; #1</td><td class="good">rescued</td></tr>
+<tr><td>Buried rule</td><td>Is pasting a password into the login field allowed?</td><td>chunk 44: #4 &rarr; #1</td><td>already in top 3 (better source promoted)</td></tr>
 <tr><td>Constraint</td><td>Can a fingerprint alone be used to log in?</td><td>chunk 99: #2 &rarr; #2</td><td>already in top 3</td></tr>
 <tr><td>Buried rule</td><td>How many wrong guesses can an attacker make before the account is locked?</td><td>chunk 94: #2 &rarr; #1</td><td>already in top 3</td></tr>
 <tr><td>Negation</td><td>Are security questions allowed when choosing a password?</td><td>not in top 10 (bi-encoder rank #11)</td><td class="miss">recall miss</td></tr>
@@ -55,10 +55,10 @@
 <tr><td>Buried rule</td><td>Can a verifier check only part of the password?</td><td>not in top 10 (bi-encoder rank #18)</td><td class="miss">recall miss</td></tr>
 </table>
 
-<p>So the cross-encoder pulled the answer into the top 3 in 5 of the 10 questions, never pushed a gold chunk out of the top 3, and could do nothing for the 3 questions where the bi-encoder had already dropped the answer below rank 10. The cases that taught me the most:</p>
+<p>So in 4 of the 10 questions the cross-encoder brought a rule or clause the baseline had missed into the top 3. In a fifth one (pasting) the baseline already had a usable passage at #3, and re-ranking only swapped in a more direct source. It never pushed a gold chunk out of the top 3, and could do nothing for the 3 questions where the bi-encoder had already dropped the answer below rank 10. The cases that taught me the most:</p>
 
 <h3>Keyword trap: "Can a website force me to include special characters and numbers?"</h3>
-<p>The baseline's top 3 were chunks 269 and 264 from Appendix A ("Strength of Passwords") plus chunk 263, the end of the reference list running into that appendix. Appendix A <i>describes</i> how many websites force rules like "an uppercase letter and a number", so it is full of words from my question. The actual rule, "Verifiers and CSPs SHALL NOT impose other composition rules", sits in chunk 40, which the bi-encoder put at #7. The cross-encoder moved it to #2.</p>
+<p>The baseline's top 3 were chunks 269 and 264 from Appendix A ("Strength of Passwords") plus chunk 263, the end of the reference list running into that appendix. Appendix A <i>describes</i> how many websites force rules like "an uppercase letter and a number", so it is full of words from my question. The actual rule, "Verifiers and CSPs SHALL NOT impose other composition rules", sits in chunk 40, which the bi-encoder put at #7. The usability section repeats the same advice in chunks 218 and 219, which I also marked as gold, but those were only at #4 and #5, so the LLM saw none of them. The cross-encoder moved chunk 40 to #2.</p>
 <div class="qa">
 <p><span class="label">Answer 1 (baseline)</span><br>"Yes. Online services use 'composition rules' that require users to construct passwords using a mix of character types, such as at least one digit (number), uppercase letter, and symbol [1], [2]."</p>
 <p><span class="label">Answer 2 (re-ranked)</span><br>"...verifiers and Credential Service Providers (CSPs) <b>shall not</b> impose composition rules requiring mixtures of different character types [2]. However, passage [1] notes that in practice, some online services do require users to include uppercase letters, numbers, or symbols [1]."</p>
@@ -85,31 +85,31 @@
 <p>The answer, "SHALL NOT permit the subscriber to store a hint", is item 7 in the same list as the composition rule (chunk 40), and the bi-encoder had it at #5 behind general password-advice chunks. Answer 1 was "I don't know. The provided passages do not mention whether password hints are allowed." Answer 2, with chunk 40 at #1, said "No, verifiers and CSPs shall not permit subscribers to store a password hint that is accessible to an unauthenticated claimant [1]." Good to see that the "I don't know" instruction worked here instead of the model guessing.</p>
 
 <h3>Buried rule: "Is pasting a password allowed?"</h3>
-<p>Here both answers were "yes", so re-ranking didn't change the conclusion. The difference is in the evidence. The baseline answer leaned on a tip from the usability section, while the re-ranked answer cited the actual requirement in chunk 44 (moved #4 &rarr; #1): verifiers "SHOULD permit claimants to use the 'paste' function". I'd count it as a quieter improvement: same answer, better source.</p>
+<p>Here both answers were "yes", so re-ranking didn't change the conclusion, and I don't count it as a rescue. The baseline already had a valid source at #3: chunk 218, the usability section's advice to "support copy and paste functionality in fields for entering passwords". The difference is in the evidence. The baseline answer leaned on that tip, while the re-ranked answer cited the actual requirement in chunk 44 (moved #4 &rarr; #1): verifiers "SHOULD permit claimants to use the 'paste' function". I'd count it as a quieter improvement: same answer, better source.</p>
 
 <h3>Where re-ranking could not help</h3>
-<p>For the security-question, SMS and truncation questions, the gold chunk was at bi-encoder rank #11, #14 and #18, just outside the top 10, so the cross-encoder never saw it. The truncation and security-question answers were both "I don't know" under both pipelines. The SMS case was a bit worrying. Answer 2 confidently said "Yes, SMS can be used", because re-ranking brought in a chunk mentioning SMS, but neither pipeline saw the sentence saying PSTN/SMS use is <i>restricted</i>. So a better ordering of the wrong candidates made the answer sound more sure, not more correct. My takeaway is the one from the lecture: re-ranking fixes ranking, not recall. Pulling 30 to 50 candidates instead of 10, or adding BM25 for hybrid search, would likely fix these three, since all of them were close to the cut-off.</p>
+<p>For the security-question, SMS and truncation questions, the gold chunk was at bi-encoder rank #11, #14 and #18, just outside the top 10, so the cross-encoder never saw it. The truncation and security-question answers were both "I don't know" under both pipelines. The SMS case was a bit worrying. Answer 2 confidently said "Yes, SMS can be used", because re-ranking brought in a chunk mentioning SMS, but neither pipeline saw the sentence saying PSTN/SMS use is <i>restricted</i>. So a better ordering of the wrong candidates made the answer sound more sure, not more correct. My takeaway is the one from the lecture: re-ranking fixes ranking, not recall. Pulling 30 to 50 candidates instead of 10, or adding BM25 for hybrid search, would at least get these three gold chunks into the candidate list, since all of them were close to the cut-off. That doesn't promise the cross-encoder would then put them in the top 3, so I've left it as future work and kept the top 10 the assignment asks for.</p>
 
 <h2>3. Latency profiling</h2>
-<p>Measured on CPU after a warm-up run. Retrieval stages are the median of 10 questions &times; 5 repeats; LLM time is the median of the real Gemini calls.</p>
+<p>Measured on CPU after a warm-up run. Retrieval stages are the median of 10 questions &times; 5 repeats; LLM time is the median of the real Gemini calls. The last row just adds the stage medians together, so it is an estimate and not the median of complete timed requests.</p>
 <table>
 <tr><th>Stage (median, ms)</th><th class="num">Pipeline 1: Baseline</th><th class="num">Pipeline 2: Re-ranking</th></tr>
-<tr><td>Query embedding + top-10 FAISS search</td><td class="num">13.3</td><td class="num">13.3</td></tr>
-<tr><td>Cross-encoder on 10 (query, chunk) pairs</td><td class="num">&ndash;</td><td class="num">285.2</td></tr>
-<tr><th>Retrieval total</th><th class="num">13.3</th><th class="num">298.4</th></tr>
+<tr><td>Query embedding + top-10 FAISS search</td><td class="num">13.4</td><td class="num">13.4</td></tr>
+<tr><td>Cross-encoder on 10 (query, chunk) pairs</td><td class="num">&ndash;</td><td class="num">303.7</td></tr>
+<tr><th>Retrieval total</th><th class="num">13.4</th><th class="num">317.1</th></tr>
 <tr><td>LLM generation (Gemini API)</td><td class="num">4,922.1</td><td class="num">4,482.4</td></tr>
-<tr><th>End-to-end</th><th class="num">4,935.3</th><th class="num">4,780.8</th></tr>
+<tr><th>Estimated total (sum of the medians above)</th><th class="num">4,935.4</th><th class="num">4,799.5</th></tr>
 </table>
-<p>Re-ranking makes retrieval about 22&times; slower (13 ms &rarr; 298 ms), which sounds like a lot until you see the LLM call takes 4 to 5 seconds. The extra 285 ms is about 6% of a full request. The LLM rows differ only because of network noise. Both pipelines send the same prompt size, and Pipeline 2 even came out faster end to end in this run. For a user, the re-ranker's cost is basically invisible next to generation.</p>
+<p>Re-ranking makes retrieval about 24&times; slower (13 ms &rarr; 317 ms). That sounds like a lot, but the LLM call takes 4 to 5 seconds. Re-ranking adds about 304 ms, roughly 6% of the estimated baseline total. I wouldn't read much into the gap between the two LLM rows. The prompt template is the same, but the three chunks inside it are different, and so are the answers that come back (a longer answer takes longer to generate). Network variation adds to that too, so Pipeline 2 coming out slightly faster in this run isn't something re-ranking caused.</p>
 
 <h2>4. Scaling question: why not run the cross-encoder on everything?</h2>
-<p>Because the cross-encoder has to do a full forward pass for every (query, chunk) pair, and none of that can be done ahead of time since every score depends on the query. The bi-encoder's expensive part, embedding the chunks, happens once at indexing time, so a query costs one small embedding plus a vector search. I measured both on my 337 chunks and scaled them linearly:</p>
+<p>Because the cross-encoder has to do a full forward pass for every (query, chunk) pair, and none of that can be done ahead of time since every score depends on the query. The bi-encoder's expensive part, embedding the chunks, happens once at indexing time, so a query costs one small embedding plus a vector search. I measured both on my 337 chunks and scaled them linearly. The million-chunk column is a rough extrapolation to show the order of magnitude, not a real prediction. A real system would use a GPU, different batching and an approximate index, and none of that scales in a straight line from 337 chunks.</p>
 <table>
-<tr><th>Per query</th><th class="num">337 chunks (measured)</th><th class="num">1 million chunks (linear estimate)</th></tr>
-<tr><td>Bi-encoder: embed query + search every vector</td><td class="num">19.3 ms</td><td class="num">754 ms</td></tr>
-<tr><td>Cross-encoder: score every chunk</td><td class="num">10,767 ms</td><td class="num">532.5 min (~9 hours)</td></tr>
+<tr><th>Per query</th><th class="num">337 chunks (measured)</th><th class="num">1 million chunks (rough linear extrapolation)</th></tr>
+<tr><td>Bi-encoder: embed query + search every vector</td><td class="num">13.3 ms</td><td class="num">636 ms</td></tr>
+<tr><td>Cross-encoder: score every chunk</td><td class="num">10,682 ms</td><td class="num">528.3 min (~9 hours)</td></tr>
 </table>
-<p>Even on this small document, scoring everything with the cross-encoder takes almost 11 seconds per question, more than double the LLM call. At a million chunks it would be about nine hours <i>per question</i>, while the bi-encoder side would still be under a second, and much less with an approximate index like HNSW. That's why the two are used together: the bi-encoder is cheap enough to search everything and get a decent shortlist (recall), and the cross-encoder is accurate enough to put the right few at the top of that shortlist (precision). Running the cross-encoder only on the 10 candidates cost me 285 ms, about 38 times less than scoring the whole document.</p>
+<p>Even on this small document, scoring everything with the cross-encoder takes almost 11 seconds per question, more than double the LLM call. Extrapolated to a million chunks it comes out at roughly nine hours <i>per question</i>, while the bi-encoder side would still be under a second, and much less with an approximate index like HNSW. That's why the two are used together: the bi-encoder is cheap enough to search everything and get a decent shortlist (recall), and the cross-encoder is accurate enough to put the right few at the top of that shortlist (precision). Running the cross-encoder only on the 10 candidates cost me about 304 ms, around 35 times less than scoring the whole document.</p>
 
 </body>
 </html>
